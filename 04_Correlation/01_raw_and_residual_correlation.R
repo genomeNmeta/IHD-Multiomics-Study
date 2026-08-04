@@ -22,16 +22,16 @@ dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 stage_meta_preferred <- 'Group_ord'
 
 # =========================
-# 0.5) CUTS
+# 0.5) THRESHOLDS & CUTOFFS
 # =========================
-# 1) Retain only abundance models for both taxa and metabolites
-model_keep <- 'abundance'
+# 1) Include both abundance and prevalence models
+model_keep <- c('abundance', 'prevalence')
 
-# 3) Significance thresholds: p < 0.05 for taxa, q < 0.05 for metabolites
+# 2) Strict significance thresholds: p < 0.05 for taxa, q < 0.05 for metabolites
 taxa_stage_p_cut <- 0.05
 met_stage_q_cut  <- 0.05
 
-# 2) Output thresholds for correlation analysis
+# 3) Output thresholds for correlation analysis (raw and residualized)
 corr_cuts <- tibble::tibble(
   stat = c('p', 'q', 'q'),
   cut  = c(0.05, 0.05, 0.1)
@@ -49,7 +49,9 @@ meta <- readr::read_csv(meta_fp, show_col_types = FALSE) %>%
   mutate(SampleID = as.character(SampleID))
 
 if (!'Group_ord' %in% names(meta)) {
-  if (!'Group' %in% names(meta)) stop('Metadata lacks both Group_ord and Group columns. Cannot proceed with stage definition.')
+  if (!'Group' %in% names(meta)) {
+    stop('Metadata lacks both Group_ord and Group columns. Cannot proceed with stage definition.')
+  }
   meta <- meta %>% mutate(Group_ord = Group)
 }
 
@@ -66,29 +68,29 @@ meta <- meta %>%
 stopifnot(all(c('SampleID', 'Group_ord') %in% names(meta)))
 
 # =========================
-# 2) Load Data Matrices
+# 2) Load Transformed Matrices
 # =========================
 read_data_transformed <- function(fp) {
   df <- readr::read_tsv(fp, show_col_types = FALSE)
-
+  
   if ('SampleID' %in% names(df)) {
     return(df %>% mutate(SampleID = as.character(SampleID)))
   }
-
+  
   if ('feature' %in% names(df)) {
     return(df %>%
-      rename(SampleID = feature) %>%
-      mutate(SampleID = as.character(SampleID))
+             rename(SampleID = feature) %>%
+             mutate(SampleID = as.character(SampleID))
     )
   }
-
+  
   if (names(df)[1] %in% c('...1', 'X1', 'V1')) {
     return(df %>%
-      rename(SampleID = 1) %>%
-      mutate(SampleID = as.character(SampleID))
+             rename(SampleID = 1) %>%
+             mutate(SampleID = as.character(SampleID))
     )
   }
-
+  
   stop(sprintf('Cannot locate SampleID column in: %s', fp))
 }
 
@@ -114,7 +116,7 @@ met_mat  <- met_mat  %>% filter(SampleID %in% common_ids) %>% arrange(SampleID)
 cat(sprintf('✅ Common samples identified: %d\n', length(common_ids)))
 
 # =========================
-# 3) Load MaAsLin3 Results
+# 3) Load MaAsLin3 Results & Identify Metric Columns
 # =========================
 taxa_res <- readr::read_tsv(taxa_all_results_fp, show_col_types = FALSE)
 met_res  <- readr::read_tsv(met_all_results_fp,  show_col_types = FALSE)
@@ -125,6 +127,7 @@ pick_first_col <- function(df, candidates) {
   hit[1]
 }
 
+# Ensure taxa is filtered by p-value and metabolites by q-value
 taxa_p_col <- pick_first_col(taxa_res, c('pval', 'pval_individual', 'pval_individuals'))
 met_q_col  <- pick_first_col(met_res,  c('qval_individual', 'qval', 'qval_individuals'))
 
@@ -132,19 +135,19 @@ if (is.na(taxa_p_col)) stop('Failed to locate p-value column in taxa results.')
 if (is.na(met_q_col))  stop('Failed to locate q-value column in metabolite results.')
 
 # =========================
-# 4) Filter by Stage Term
+# 4) Filter Features by Stage, Model, and Significance
 # =========================
-filter_stage_GroupL <- function(df, stage_meta_name, model_keep, stat_col, stat_cut) {
+filter_stage_GroupL <- function(df, stage_meta_name, models_to_keep, stat_col, stat_cut) {
   req <- c('feature', 'metadata', 'name', 'coef', 'model', stat_col)
   miss <- setdiff(req, names(df))
   if (length(miss) > 0) stop('Missing required columns: ', paste(miss, collapse = ', '))
-
+  
   target_name <- paste0(stage_meta_name, '.L')
-
+  
   out <- df %>%
     mutate(model2 = tolower(as.character(model))) %>%
     filter(
-      model2 == model_keep,
+      model2 %in% models_to_keep,
       metadata == stage_meta_name,
       name == target_name,
       !is.na(.data[[stat_col]]),
@@ -158,13 +161,17 @@ filter_stage_GroupL <- function(df, stage_meta_name, model_keep, stat_col, stat_
       term = name,
       model = model2,
       stage_meta = stage_meta_name
-    )
-
-  cat(sprintf('🔎 Filtered to %d rows (name==%s, %s<%.3g, model==%s)\n',
-              nrow(out), target_name, stat_col, stat_cut, model_keep))
-  out
+    ) %>%
+    # Prevent duplication if a feature is significant in both abundance and prevalence
+    arrange(stat_value) %>%
+    distinct(feat, .keep_all = TRUE)
+  
+  cat(sprintf('🔎 Filtered to %d unique features (name == %s, %s < %.3g, models in [%s])\n',
+              nrow(out), target_name, stat_col, stat_cut, paste(models_to_keep, collapse = ', ')))
+  return(out)
 }
 
+# Strictly enforcing p < 0.05 for taxa and q < 0.05 for metabolites
 taxa_sig <- filter_stage_GroupL(taxa_res, stage_meta_preferred, model_keep, taxa_p_col, taxa_stage_p_cut) %>%
   rename(pv = stat_value)
 
@@ -174,27 +181,19 @@ met_sig  <- filter_stage_GroupL(met_res,  stage_meta_preferred, model_keep, met_
 readr::write_tsv(taxa_sig, file.path(out_dir, 'taxa_sig_stage_p0.05.tsv'))
 readr::write_tsv(met_sig,  file.path(out_dir, 'met_sig_stage_q0.05.tsv'))
 
-cat(sprintf('✅ Significant features retained - Taxa: %d, Metabolites: %d\n', nrow(taxa_sig), nrow(met_sig)))
+cat(sprintf('✅ Significant features retained -> Taxa (p<0.05): %d, Metabolites (q<0.05): %d\n', nrow(taxa_sig), nrow(met_sig)))
 
 if (nrow(taxa_sig) == 0) {
-  stop(
-    'No significant taxa features passed the filter criteria.\n',
-    'name==', paste0(stage_meta_preferred, '.L'),
-    ', model==', model_keep,
-    ', ', taxa_p_col, '<', taxa_stage_p_cut, '\n'
-  )
+  stop(sprintf('No significant taxa features passed the filter criteria (name == %s, %s < %s).', 
+               paste0(stage_meta_preferred, '.L'), taxa_p_col, taxa_stage_p_cut))
 }
 if (nrow(met_sig) == 0) {
-  stop(
-    'No significant metabolite features passed the filter criteria.\n',
-    'name==', paste0(stage_meta_preferred, '.L'),
-    ', model==', model_keep,
-    ', ', met_q_col, '<', met_stage_q_cut, '\n'
-  )
+  stop(sprintf('No significant metabolite features passed the filter criteria (name == %s, %s < %s).', 
+               paste0(stage_meta_preferred, '.L'), met_q_col, met_stage_q_cut))
 }
 
 # =========================
-# 5) Extract Features from Matrices
+# 5) Extract Relevant Features from Matrices
 # =========================
 taxa_cols_all <- setdiff(names(taxa_mat), 'SampleID')
 met_cols_all  <- setdiff(names(met_mat),  'SampleID')
@@ -211,7 +210,7 @@ as_numeric_matrix <- function(df, cols) {
   X <- as.matrix(X)
   colnames(X) <- cols
   rownames(X) <- df$SampleID
-  X
+  return(X)
 }
 
 X_taxa <- as_numeric_matrix(taxa_mat, taxa_feats)
@@ -220,17 +219,17 @@ X_met  <- as_numeric_matrix(met_mat,  met_feats)
 cat(sprintf('✅ Matrix dimensions ready - Taxa: %d features, Metabolites: %d features\n', ncol(X_taxa), ncol(X_met)))
 
 # =========================
-# 6) Residualize by Stage
+# 6) Stage Residualization
 # =========================
 stage_num <- as.integer(meta$Group_ord)
 names(stage_num) <- meta$SampleID
 
 residualize_on_stage <- function(M, stage_num_named) {
   if (!all(rownames(M) %in% names(stage_num_named))) {
-    stop('Stage vector names do not adequately cover matrix rownames.')
+    stop('Stage vector names do not adequately cover the matrix rownames.')
   }
   st <- stage_num_named[rownames(M)]
-
+  
   out <- M
   for (j in seq_len(ncol(M))) {
     y <- M[, j]
@@ -244,24 +243,24 @@ residualize_on_stage <- function(M, stage_num_named) {
     r[ok] <- residuals(fit)
     out[, j] <- r
   }
-  out
+  return(out)
 }
 
 X_taxa_resid <- residualize_on_stage(X_taxa, stage_num)
 X_met_resid  <- residualize_on_stage(X_met,  stage_num)
 
 # =========================
-# 7) Compute Spearman Correlations
+# 7) Pairwise Spearman Correlations
 # =========================
 pairwise_spearman <- function(A, B) {
   taxa <- colnames(A)
   mets <- colnames(B)
-
+  
   r_mat <- matrix(NA_real_, nrow = length(taxa), ncol = length(mets),
                   dimnames = list(taxa, mets))
   p_mat <- matrix(NA_real_, nrow = length(taxa), ncol = length(mets),
                   dimnames = list(taxa, mets))
-
+  
   for (i in seq_along(taxa)) {
     x <- A[, i]
     for (j in seq_along(mets)) {
@@ -273,8 +272,8 @@ pairwise_spearman <- function(A, B) {
       p_mat[i, j] <- ct$p.value
     }
   }
-
-  list(r = r_mat, p = p_mat)
+  
+  return(list(r = r_mat, p = p_mat))
 }
 
 cat('⏳ Computing raw correlations...\n')
@@ -292,7 +291,7 @@ to_long <- function(r_mat, p_mat, tag) {
   df$r <- as.vector(r_mat)
   df$p <- as.vector(p_mat)
   df$analysis <- tag
-  df
+  return(df)
 }
 
 raw_long <- to_long(raw$r, raw$p, 'raw')
@@ -313,7 +312,7 @@ all_long2 <- all_long %>%
   mutate(concordant_trend = ifelse(is.na(taxa_coef) | is.na(met_coef), NA, sign(taxa_coef) == sign(met_coef)))
 
 # =========================
-# 8) Save Results
+# 8) Export Correlation Results
 # =========================
 save_full <- function(df, analysis_tag, out_dir) {
   out_fp <- file.path(out_dir, paste0('taxa_metabolite_corr_', analysis_tag, '_ALL.tsv'))
@@ -321,14 +320,14 @@ save_full <- function(df, analysis_tag, out_dir) {
     filter(analysis == analysis_tag) %>%
     arrange(taxa, metabolite)
   readr::write_tsv(out, out_fp)
-  cat(sprintf('- %s (%s, unfiltered): %d rows\n', out_fp, analysis_tag, nrow(out)))
+  cat(sprintf('  - %s (%s, unfiltered): %d rows\n', out_fp, analysis_tag, nrow(out)))
   invisible(out_fp)
 }
 
 save_filtered <- function(df, analysis_tag, stat, cut, out_dir) {
   stat_tag <- paste0(stat, fmt_cut(cut))
   out_fp <- file.path(out_dir, paste0('taxa_metabolite_corr_', analysis_tag, '_', stat_tag, '.tsv'))
-
+  
   if (stat == 'p') {
     out <- df %>%
       filter(analysis == analysis_tag, p < cut) %>%
@@ -340,13 +339,13 @@ save_filtered <- function(df, analysis_tag, stat, cut, out_dir) {
   } else {
     stop('Invalid statistic specified. Must be "p" or "q".')
   }
-
+  
   readr::write_tsv(out, out_fp)
-  cat(sprintf('- %s (%s, %s < %s): %d rows\n', out_fp, analysis_tag, stat, fmt_cut(cut), nrow(out)))
+  cat(sprintf('  - %s (%s, %s < %s): %d rows\n', out_fp, analysis_tag, stat, fmt_cut(cut), nrow(out)))
   invisible(out_fp)
 }
 
-cat('Output files saved (Full and Filtered sets):\n')
+cat('✅ Output files saved (Full and Filtered sets):\n')
 analyses <- c('raw', 'residual_stage_removed')
 
 # Export full result sets
