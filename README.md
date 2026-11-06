@@ -19,7 +19,7 @@ The microbiome preprocessing and profiling pipeline relies on shotgun metagenomi
   * `02_removal_of_human_reads.sh`: Depletion of host reads using **Bowtie2** and **SAMtools**.
   * `03_taxonomic_and_functional_profiling.sh` & `03_GMM_table.R`: Profiling via **HUMAnN3/MetaPhlAn4** (mpa_vJun23_CHOCOPhlAnSGB_202403), and Curated Gut Metabolic Modules (GMMs) utilizing `omixerRpm`.
   * `04_statistical_analysis.R`: Alpha/Beta diversity (`vegan`), taxonomic and functional pathway analysis, and Spearman correlations.
-  * `05_calculation_of_MRS.R` & `05_calculation_of_PRS.sh`: Calculation of Abundance/Presence-based Microbial Risk Scores (aMRS, paMRS) and Polygenic Risk Scores (CVD-PRS) via **PLINK**.
+  * `05_calculation_of_MRS.R` & `05_calculation_of_PRS.sh`: Calculation of Abundance-, Presence/Absence-based Microbial Risk Scores (aMRS, paMRS) and Polygenic Risk Scores (CVD-PRS) from PGS catalog (https://www.PGSCatalog.org) via **PLINK**.
 
 ### Part 2: Metabolomics & Multi-Omics Integration (Authored by Hyun-Woo Yang)
 This section covers blood metabolome quality control, ordinal differential analysis, complex multi-omics visualizations, and the development of cumulative ordinal risk models.
