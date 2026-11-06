@@ -40,7 +40,7 @@ This section covers blood metabolome quality control, ordinal differential analy
 ## 🛠 Prerequisites & Dependencies
 
 ### Software & Bioinformatics Tools
-* Trimmomatic (v0.39), Bowtie2, Samtools (v1.20), HUMAnN3, MetaPhlAn, PLINK
+* Trimmomatic (v0.39), Bowtie2, SAMtools (v1.20), HUMAnN3, MetaPhlAn4, PLINK
 
 ### R Packages
 * `vegan`, `omixerRpm`, `maaslin3`, `circlize`, `ComplexHeatmap`, `dplyr`, `tidyr`, `tibble`, `readr`, `stringr`
