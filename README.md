@@ -1,4 +1,4 @@
-# Gut Microbiome and Metabolome Signatures Across the Ischemic Heart Disease Severity Spectrum: A Multi-Omics Study
+# Gut microbiome and serum metabolic profiles across clinical presentations of ischemic heart disease: a cross-sectional study
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 
