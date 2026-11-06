@@ -5,7 +5,7 @@
 ## 📌 Project Overview
 This repository contains the complete analytical pipeline for investigating the association between the gut microbiome, blood metabolome, and the severity of Ischemic Heart Disease (IHD). The study categorizes IHD severity into Stable Angina (SA), Acute Coronary Syndrome (ACS), and Heart Failure with reduced Ejection Fraction (HFrEF), employing a comprehensive multi-omics and ordinal differential analysis approach.
 
-> **Note:** This code is associated with the paper *"Gut Microbiome and Metabolome Signatures Across the Ischemic Heart Disease Severity Spectrum: A Multi-Omics Study"* (Under Review).
+> **Note:** This code is associated with the paper *"Gut microbiome and serum metabolic profiles across clinical presentations of ischemic heart disease: a cross-sectional study"* (Under Review).
 > 
 > **Co-first Authors:** Chihoon Park & Hyun-Woo Yang<br>**Corresponding Authors:** Han-Na Kim, Si-Hyuck Kang
 
@@ -16,8 +16,8 @@ The microbiome preprocessing and profiling pipeline relies on shotgun metagenomi
 
 * **`01_Microbiome/`**: 
   * `01_quality_filtering.sh`: Adapter trimming and quality filtering using **Trimmomatic**.
-  * `02_removal_of_human_reads.sh`: Depletion of host reads using **Bowtie2** and **Samtools**.
-  * `03_taxonomic_and_functional_profiling.sh` & `03_GMM_table.R`: Profiling via **HUMAnN3/MetaPhlAn** (mpa_vJun23_CHOCOPhlAnSGB_202403), and Curated Gut Metabolic Modules (GMMs) utilizing `omixerRpm`.
+  * `02_removal_of_human_reads.sh`: Depletion of host reads using **Bowtie2** and **SAMtools**.
+  * `03_taxonomic_and_functional_profiling.sh` & `03_GMM_table.R`: Profiling via **HUMAnN3/MetaPhlAn4** (mpa_vJun23_CHOCOPhlAnSGB_202403), and Curated Gut Metabolic Modules (GMMs) utilizing `omixerRpm`.
   * `04_statistical_analysis.R`: Alpha/Beta diversity (`vegan`), taxonomic and functional pathway analysis, and Spearman correlations.
   * `05_calculation_of_MRS.R` & `05_calculation_of_PRS.sh`: Calculation of Abundance/Presence-based Microbial Risk Scores (aMRS, paMRS) and Polygenic Risk Scores (CVD-PRS) via **PLINK**.
 
@@ -51,4 +51,4 @@ This section covers blood metabolome quality control, ordinal differential analy
 ## 🚀 How to Use
 1. Clone the repository:
    ```bash
-   git clone [https://github.com/HyeonuYang/IHD-Multiomics-Study.git](https://github.com/HyeonuYang/IHD-Multiomics-Study.git)
+   git clone [https://github.com/genomeNmeta/IHD-Multiomics-Study.git](https://github.com/genomeNmeta/IHD-Multiomics-Study.git)
